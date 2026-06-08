@@ -5,7 +5,7 @@ description: Updates a research project's datasets to their latest available ver
 
 # update-data
 
-Help a research team update all the datasets in a project to their latest available versions. This is a careful, three-phase process: first understand exactly what data exists and what each dataset is, then find and download updates, then produce a detailed report.
+Help a research team update all the datasets in a project to their latest available versions. This is a careful, four-phase process: first understand exactly what data exists and what each dataset is, then find and download updates, then produce a detailed report, and finally verify independently that everything was actually done.
 
 ## Invocation
 
@@ -134,6 +134,57 @@ The following datasets need manual steps. Complete in order:
 
 ---
 
+## Phase 4 — Verification
+
+After completing Phases 1–3, spawn an independent verification agent to confirm the work is actually complete before declaring success. This phase exists because it's easy to believe a task is done when files silently failed to download, a dataset was overlooked, or a report entry says "Updated: Yes" but the file isn't on disk. The verification agent starts fresh — it checks the actual state of the output folder against the list and the report, not your memory of what happened.
+
+**Spawn the agent** using the Agent tool with access to:
+- The `--list` file
+- The `--output` folder
+- The `update_report.md` just written
+
+Give it no context from Phases 1–3. Its job is to independently verify disk state, not to trust your account of it.
+
+**The agent checks four things:**
+
+**1. Completeness** — Every entry in `--list` must appear in the report in exactly one of these categories:
+- Updated (file in output folder)
+- Skipped (marked as internal table, with justification)
+- Requires manual download (explicit instructions provided)
+
+Any dataset from `--list` missing from the report is a gap that must be fixed.
+
+**2. File integrity** — For every file the report claims was downloaded:
+- The file exists at the declared path inside `--output`
+- The file is non-zero bytes (a zero-byte file is a silent failure, not a successful download)
+- The filename matches the original naming convention from the raw data folder (not the provider's native filename)
+
+**3. Report accuracy** — The report's summary table must reflect actual disk state:
+- "Updated: Yes" only if the file is present and non-empty
+- "Downloaded: Yes" only if the file exists on disk
+- Download URLs are the actual direct URLs used to fetch the file — not a landing page, not an approximation
+
+**4. User action quality** — Every "requires manual download" entry must contain instructions a research assistant can follow without asking for clarification: the exact URL to navigate to, the specific file or button to click, and which subfolder within `--output` to save it to.
+
+**The agent appends a Verification Summary** to the end of `update_report.md`:
+
+```markdown
+---
+
+## Verification Summary
+
+**Status:** PASS / FAIL
+**Datasets checked:** [N]
+**Issues found:**
+- [Dataset name]: [description of gap or discrepancy]
+- (or "None" if everything checks out)
+**Verified:** [YYYY-MM-DD]
+```
+
+**If the status is FAIL**, fix every issue identified before presenting the report to the user. Do not tell the user the task is complete while the Verification Summary shows FAIL. Re-run Phase 4 after fixing to confirm the issues are resolved.
+
+---
+
 ## Output folder structure
 
 Mirror the original raw data folder exactly:
@@ -151,3 +202,4 @@ Mirror the original raw data folder exactly:
 - Don't trim data to the original time window
 - Don't skip ZIP extraction or PDF-to-CSV conversion
 - Don't skip or flag an internal table without checking both the README and the file itself
+- Don't tell the user the task is done before Phase 4 produces a PASS
